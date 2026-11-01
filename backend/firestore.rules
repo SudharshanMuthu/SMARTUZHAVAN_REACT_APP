@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 1. Users collection
+    // Any authenticated user can read profiles (needed for displaying seller, buyer, transporter info)
+    // Only the user themselves can create or update their own profile document
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if false;
+    }
+
+    // 2. Posts collection (Crop listings in marketplace)
+    // All authenticated users can read crop posts
+    // Farmers can create a post where userId matches their auth.uid
+    // Post owners can update or delete their posts
+    match /posts/{postId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // 3. Warehouses collection (Storage facilities)
+    // Any authenticated user can read warehouses
+    // Warehouse owners can create with ownerId == request.auth.uid
+    // Facility owners can update and delete; also allows booking adjustment updates to availableSpace
+    match /warehouses/{warehouseId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['availableSpace'])
+      );
+      allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+    }
+
+    // 4. Warehouse Bookings collection
+    // Read: Allowed for the farmer who booked or the warehouse owner
+    // Create: Allowed for the authenticated farmer
+    // Update: Allowed for the warehouse owner (approving/rejecting) or the farmer
+    match /warehouseBookings/{bookingId} {
+      allow read: if isAuthenticated() && (
+        resource.data.farmerId == request.auth.uid ||
+        resource.data.ownerId == request.auth.uid
+      );
+      allow create: if isAuthenticated() && request.resource.data.farmerId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.farmerId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && resource.data.farmerId == request.auth.uid;
+    }
+
+    // 5. Vehicles collection (Transport fleet)
+    // Any authenticated user can browse available transport vehicles
+    // Transporters can create with ownerId == request.auth.uid
+    // Transporters can update or delete their own vehicles
+    match /vehicles/{vehicleId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+    }
+
+    // 6. Orders collection (Crop purchase orders & Freight transport trips)
+    // Read: Allowed if auth.uid is buyerId, sellerId, requestedById, or transporterId
+    // Create: Allowed if auth.uid is buyerId or requestedById
+    // Update: Allowed if auth.uid is involved in the order
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && (
+        resource.data.buyerId == request.auth.uid ||
+        resource.data.sellerId == request.auth.uid ||
+        resource.data.requestedById == request.auth.uid ||
+        resource.data.transporterId == request.auth.uid
+      );
+      allow create: if isAuthenticated() && (
+        request.resource.data.buyerId == request.auth.uid ||
+        request.resource.data.requestedById == request.auth.uid
+      );
+      allow update: if isAuthenticated() && (
+        resource.data.buyerId == request.auth.uid ||
+        resource.data.sellerId == request.auth.uid ||
+        resource.data.requestedById == request.auth.uid ||
+        resource.data.transporterId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.buyerId == request.auth.uid ||
+        resource.data.requestedById == request.auth.uid
+      );
+    }
+
+    // 7. Notifications collection
+    // Read & Update & Delete: Allowed only for the notification's recipient
+    // Create: Allowed for any authenticated user sending an alert
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId is string;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // 8. Machinery Rentals collection
+    // Farmers can create and read their equipment rental requests
+    match /machinery_rentals/{rentalId} {
+      allow read: if isAuthenticated() && resource.data.farmerId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.farmerId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.farmerId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.farmerId == request.auth.uid;
+    }
+
+    // 9. Public informational feeds (Mandi prices, Government schemes & alerts)
+    match /market_prices/{priceId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Managed by backend or admin
+    }
+
+    match /alerts/{alertId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Managed by backend or admin
+    }
+
+    match /app_config/{configId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+  }
+}

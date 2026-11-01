@@ -1,0 +1,22 @@
+{
+  "name": "smart-uzhavan-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Smart Uzhavan - Node.js + Express.js",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed": "node seed.js",
+    "sync:cloud": "node scripts/syncToFirestore.js",
+    "test": "node --check src/server.js && node --check src/app.js && node test_phase10_integration.js && node test_phase11a_agristore.js && node test_phase11b_farmtools.js && node test_phase14_admin.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "firebase-admin": "^13.2.0",
+    "helmet": "^8.0.0"
+  },
+  "private": true
+}

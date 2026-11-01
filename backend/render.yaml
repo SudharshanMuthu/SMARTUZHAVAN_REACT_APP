@@ -1,0 +1,31 @@
+# Render Blueprint for Smart Uzhavan Backend
+# Documentation: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: smart-uzhavan-backend
+    env: node
+    plan: free
+    region: singapore
+    rootDir: .
+    buildCommand: npm install --production
+    startCommand: node src/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: HOST
+        value: 0.0.0.0
+      - key: FIREBASE_PROJECT_ID
+        value: smart-uzhavan-369b0
+      - key: CORS_ORIGIN
+        value: "*"
+    # Persistent Disk (Optional — requires Render Starter Plan $7/mo)
+    # On Free plan, leave disk commented out. The committed ecosystem_data.json
+    # provides all 53 crops, 30 vehicles, 15 warehouses, market prices and alerts.
+    # disk:
+    #   name: smart-uzhavan-data
+    #   mountPath: /app/data
+    #   sizeGB: 1

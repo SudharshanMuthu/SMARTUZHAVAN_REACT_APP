@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart Uzhavan — Admin Portal</title>
+    <meta name="description" content="Centralized agricultural operations and moderation portal for Smart Uzhavan." />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            },
+            colors: {
+              agri: {
+                50: '#F5F9F6',
+                100: '#E8F5E9',
+                200: '#C8E6C9',
+                500: '#4CAF50',
+                600: '#2E7D32',
+                700: '#1B5E20',
+                800: '#0E3B13',
+                900: '#07240A',
+              },
+            },
+          },
+        },
+      }
+    </script>
+  </head>
+  <body class="bg-gray-50 text-gray-900 font-sans antialiased min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

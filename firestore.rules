@@ -1,0 +1,216 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 1. Users collection
+    // Read: Allowed for authenticated users (needed for displaying seller, buyer, transporter info)
+    // Only the user themselves can create or update their own profile document
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if false;
+    }
+
+    // 2. Posts collection (Crop listings in marketplace)
+    // Read: Public (browse marketplace without permission failure)
+    // Create: Authenticated farmer/seller matching userId
+    // Update/Delete: Post owner matching userId
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid ||
+        request.resource.data.farmerId == request.auth.uid
+      );
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.farmerId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.farmerId == request.auth.uid
+      );
+    }
+
+    // 3. Warehouses collection (Storage facilities)
+    // Read: Public (browse storage facilities across Tamil Nadu)
+    // Create: Authenticated warehouse owner
+    // Update: Owner can update all fields; authenticated users can update available/occupied space during booking
+    // Delete: Owner only
+    match /warehouses/{warehouseId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && (
+        request.resource.data.ownerId == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['availableSpace', 'occupiedSpace', 'availableBags', 'updatedAt'])
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      );
+    }
+
+    // 4. Warehouse Bookings collection
+    // Read: Authenticated users (Farmer who booked or Warehouse owner)
+    // Create: Authenticated farmer/user
+    // Update: Warehouse owner (approving/rejecting) or Farmer
+    // Delete: Farmer or Warehouse owner
+    match /warehouseBookings/{bookingId} {
+      allow read: if isAuthenticated() && (
+        resource.data.farmerId == request.auth.uid ||
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        resource.data.warehouseOwnerId == request.auth.uid
+      );
+      allow create: if isAuthenticated() && (
+        request.resource.data.farmerId == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.warehouseOwnerId == request.auth.uid ||
+        resource.data.farmerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.farmerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        resource.data.ownerId == request.auth.uid
+      );
+    }
+
+    // 5. Vehicles collection (Transport fleet)
+    // Read: Public (browse transport options)
+    // Create: Transporter owner matching auth.uid
+    // Update/Delete: Transporter owner matching auth.uid
+    match /vehicles/{vehicleId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && (
+        request.resource.data.ownerId == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid ||
+        request.resource.data.transporterId == request.auth.uid
+      );
+      allow update: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        resource.data.transporterId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        resource.data.transporterId == request.auth.uid
+      );
+    }
+
+    // 6. Orders collection (Crop purchase orders & Freight transport trips)
+    // Read: Buyer, seller/farmer, requester, or transporter
+    // Create: Authenticated buyer or farmer/requester
+    // Update: Involved participants
+    // Delete: Requester or Buyer
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && (
+        resource.data.buyerId == request.auth.uid ||
+        resource.data.sellerId == request.auth.uid ||
+        resource.data.farmerId == request.auth.uid ||
+        resource.data.requestedById == request.auth.uid ||
+        resource.data.transporterId == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if isAuthenticated() && (
+        request.resource.data.buyerId == request.auth.uid ||
+        request.resource.data.requestedById == request.auth.uid ||
+        request.resource.data.farmerId == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update: if isAuthenticated() && (
+        resource.data.buyerId == request.auth.uid ||
+        resource.data.sellerId == request.auth.uid ||
+        resource.data.farmerId == request.auth.uid ||
+        resource.data.requestedById == request.auth.uid ||
+        resource.data.transporterId == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.buyerId == request.auth.uid ||
+        resource.data.requestedById == request.auth.uid ||
+        resource.data.farmerId == request.auth.uid
+      );
+    }
+
+    // 7. Notifications collection
+    // Read & Update: Recipient or broadcast 'all'
+    // Create: Authenticated user sending alert or system notification
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.userId == 'all' ||
+        resource.data.recipientId == request.auth.uid
+      );
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId is string ||
+        request.resource.data.recipientId is string
+      );
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.userId == 'all' ||
+        resource.data.recipientId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid
+      );
+    }
+
+    // 8. Machinery Rentals collection
+    // Farmers can create, read, and manage their machinery rental requests
+    match /machinery_rentals/{rentalId} {
+      allow read: if isAuthenticated() && (
+        resource.data.farmerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if isAuthenticated() && (
+        request.resource.data.farmerId == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid
+      );
+      allow update: if isAuthenticated() && (
+        resource.data.farmerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.farmerId == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      );
+    }
+
+    // 9. Public informational feeds (Mandi prices, Government schemes & alerts)
+    // Read: Public for all users
+    // Write: Backend Admin
+    match /market_prices/{priceId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /alerts/{alertId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /app_config/{configId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
